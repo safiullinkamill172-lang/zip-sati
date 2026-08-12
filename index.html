@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZIP загрузчик</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 20px; }
+  .container { max-width: 1000px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 30px; }
+  header h1 { font-size: 2rem; background: linear-gradient(90deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  header p { color: #94a3b8; }
+  .upload-box { background: #1e293b; border: 2px dashed #334155; border-radius: 12px; padding: 40px 20px; text-align: center; margin-bottom: 30px; transition: all .2s; }
+  .upload-box.dragover { border-color: #60a5fa; background: #1e3a5f; }
+  .upload-box input { display: none; }
+  .btn-group { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .upload-btn { display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(90deg, #3b82f6, #8b5cf6); color: white; padding: 14px 26px; border-radius: 10px; cursor: pointer; font-size: 1rem; font-weight: 600; transition: transform .15s, opacity .15s; min-height: 48px; }
+  .upload-btn:active { transform: scale(.97); opacity: .9; }
+  .upload-btn.secondary { background: #334155; border: 1px solid #475569; }
+  .hint { color: #64748b; margin-top: 12px; font-size: .9rem; }
+  .progress { height: 6px; background: #334155; border-radius: 3px; margin-top: 16px; overflow: hidden; display: none; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); width: 0%; transition: width .2s; }
+  .status { margin-top: 12px; padding: 10px; border-radius: 6px; display: none; }
+  .status.error { background: #7f1d1d; display: block; }
+  .status.success { background: #14532d; display: block; }
+  .archives { display: flex; flex-direction: column; gap: 16px; }
+  .archive { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; }
+  .archive-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; gap: 12px; flex-wrap: wrap; }
+  .archive-title { font-size: 1.15rem; font-weight: 600; }
+  .archive-meta { color: #64748b; font-size: .85rem; margin-top: 4px; }
+  .toggle { color: #60a5fa; font-size: .9rem; user-select: none; }
+  .delete-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: .85rem; }
+  .files-tree { margin-top: 16px; padding-top: 16px; border-top: 1px solid #334155; display: none; }
+  .files-tree.open { display: block; }
+  .tree ul { list-style: none; padding-left: 20px; }
+  .tree li { margin: 4px 0; }
+  .tree .dir { color: #fbbf24; cursor: pointer; user-select: none; }
+  .tree .dir::before { content: "📁 "; }
+  .tree .dir.collapsed::before { content: "📂 "; }
+  .tree .file a { color: #93c5fd; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px; border-radius: 4px; }
+  .tree .file a:hover { background: #334155; }
+  .tree .size { color: #64748b; font-size: .8rem; }
+  .tree .actions { display: inline-flex; gap: 8px; margin-left: 8px; }
+  .tree .actions a { font-size: .8rem; color: #94a3b8; text-decoration: none; padding: 2px 8px; border: 1px solid #334155; border-radius: 4px; }
+  .tree .actions a:hover { background: #334155; color: white; }
+  .empty { text-align: center; color: #64748b; padding: 40px; }
+  .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.8); z-index: 100; justify-content: center; align-items: center; padding: 20px; }
+  .modal.open { display: flex; }
+  .modal-content { background: #1e293b; border-radius: 12px; max-width: 90vw; max-height: 90vh; width: 800px; display: flex; flex-direction: column; overflow: hidden; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid #334155; }
+  .modal-header span { font-weight: 600; }
+  .modal-close { background: none; border: none; color: #94a3b8; font-size: 1.5rem; cursor: pointer; }
+  .modal-body { flex: 1; overflow: auto; background: #0f172a; padding: 10px; display: flex; justify-content: center; align-items: center; }
+  .modal-body img, .modal-body video, .modal-body iframe { max-width: 100%; max-height: 80vh; border-radius: 6px; }
+  .modal-body pre { text-align: left; white-space: pre-wrap; word-break: break-all; color: #e2e8f0; font-family: ui-monospace, monospace; font-size: .85rem; padding: 16px; width: 100%; }
+  @media (max-width: 640px) {
+    body { padding: 12px; }
+    header h1 { font-size: 1.5rem; }
+    .upload-box { padding: 28px 14px; }
+    .upload-btn { flex: 1 1 100%; }
+    .archive { padding: 16px; }
+    .archive-title { font-size: 1.05rem; word-break: break-word; }
+    .modal-content { width: 100%; height: 100%; max-width: 100vw; max-height: 100vh; border-radius: 0; }
+    .tree .file a { word-break: break-word; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>📦 ZIP Загрузчик</h1>
+    <p>Загрузите ZIP — он распакуется автоматически, и все увидят файлы</p>
+  </header>
+  <div class="upload-box" id="uploadBox">
+    <input type="file" id="fileInput" accept=".zip,application/zip,application/x-zip-compressed">
+    <input type="file" id="fileInputAny">
+    <div class="btn-group">
+      <label class="upload-btn" for="fileInput">Выбрать ZIP</label>
+      <label class="upload-btn secondary" for="fileInputAny">Выбрать из Файлов</label>
+    </div>
+    <p class="hint">или перетащите сюда · до 500 МБ</p>
+    <div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="status" id="status"></div>
+  </div>
+  <h2 style="margin-bottom:16px;">Архивы</h2>
+  <div class="archives" id="archivesList"><div class="empty">Загрузите первый архив ↑</div></div>
+</div>
+<div class="modal" id="modal">
+  <div class="modal-content">
+    <div class="modal-header"><span id="modalTitle">Просмотр</span><button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const fileInput = $('fileInput'), fileInputAny = $('fileInputAny'), uploadBox = $('uploadBox');
+const progress = $('progress'), progressBar = $('progressBar'), statusEl = $('status');
+function isZip(f) { return f && f.name.toLowerCase().endsWith('.zip'); }
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) uploadFile(fileInput.files[0]); });
+fileInputAny.addEventListener('change', () => {
+  const f = fileInputAny.files[0];
+  if (!f) return;
+  if (isZip(f)) uploadFile(f); else { showStatus('Нужен файл .zip', true); fileInputAny.value = ''; }
+});
+['dragover','dragenter'].forEach(ev => uploadBox.addEventListener(ev, e => { e.preventDefault(); uploadBox.classList.add('dragover'); }));
+['dragleave','drop'].forEach(ev => uploadBox.addEventListener(ev, e => { e.preventDefault(); uploadBox.classList.remove('dragover'); }));
+uploadBox.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (isZip(f)) uploadFile(f); else showStatus('Нужен .zip', true); });
+function showStatus(msg, err) { statusEl.textContent = msg; statusEl.className = 'status ' + (err ? 'error' : 'success'); setTimeout(() => statusEl.className = 'status', 4000); }
+function uploadFile(file) {
+  const fd = new FormData(); fd.append('zipfile', file);
+  progress.style.display = 'block'; progressBar.style.width = '0%'; statusEl.className = 'status';
+  const xhr = new XMLHttpRequest();
+  xhr.upload.onprogress = e => { if (e.lengthComputable) progressBar.style.width = (e.loaded / e.total * 100) + '%'; };
+  xhr.onload = () => {
+    progress.style.display = 'none';
+    if (xhr.status === 200) { showStatus('✅ Архив распакован!', false); fileInput.value = ''; fileInputAny.value = ''; loadArchives(); }
+    else { let m = 'Ошибка'; try { m = JSON.parse(xhr.responseText).error || m; } catch {} showStatus('❌ ' + m, true); }
+  };
+  xhr.onerror = () => { progress.style.display = 'none'; showStatus('❌ Сбой сети', true); };
+  xhr.open('POST', '/upload'); xhr.send(fd);
+}
+async function loadArchives() { try { const r = await fetch('/api/archives'); renderArchives(await r.json()); } catch (e) {} }
+function formatSize(b) { if (b < 1024) return b + ' Б'; if (b < 1048576) return (b/1024).toFixed(1) + ' КБ'; return (b/1048576).toFixed(1) + ' МБ'; }
+function formatDate(s) { return s ? new Date(s).toLocaleString('ru-RU') : ''; }
+function renderArchives(archives) {
+  const el = $('archivesList');
+  if (!archives.length) { el.innerHTML = '<div class="empty">Загрузите первый архив ↑</div>'; return; }
+  el.innerHTML = archives.map(a => `
+    <div class="archive" data-id="${a.id}">
+      <div class="archive-header" onclick="toggleArchive('${a.id}')">
+        <div>
+          <div class="archive-title">📦 ${escapeHtml(a.name || a.id)}</div>
+          <div class="archive-meta">${a.originalFile ? escapeHtml(a.originalFile) + ' · ' : ''}${formatDate(a.uploadedAt)}${a.size ? ' · ' + formatSize(a.size) : ''}</div>
+        </div>
+        <div><span class="toggle" id="toggle-${a.id}">показать ▼</span><button class="delete-btn" onclick="deleteArchive(event, '${a.id}')">Удалить</button></div>
+      </div>
+      <div class="files-tree" id="files-${a.id}"></div>
+    </div>`).join('');
+}
+async function toggleArchive(id) {
+  const tree = $('files-' + id), toggle = $('toggle-' + id);
+  if (tree.classList.contains('open')) { tree.classList.remove('open'); toggle.textContent = 'показать ▼'; return; }
+  if (!tree.dataset.loaded) {
+    tree.innerHTML = '<div style="color:#64748b">Загрузка…</div>';
+    try { const d = await (await fetch(`/api/archives/${id}`)).json(); tree.innerHTML = `<div class="tree">${renderTree(d.files, id)}</div>`; tree.dataset.loaded = '1'; }
+    catch { tree.innerHTML = '<div style="color:#f87171">Ошибка</div>'; }
+  }
+  tree.classList.add('open'); toggle.textContent = 'скрыть ▲';
+}
+function renderTree(items, aid) {
+  if (!items.length) return '<div style="color:#64748b">Архив пуст</div>';
+  return '<ul>' + items.map(item => {
+    if (item.type === 'dir') return `<li><span class="dir" onclick="this.classList.toggle('collapsed'); this.nextElementSibling.style.display = this.classList.contains('collapsed') ? 'none' : '';">${escapeHtml(item.name)}</span><ul>${renderTree(item.children, aid)}</ul></li>`;
+    const url = `/api/archives/${aid}/file/${item.path}`;
+    return `<li class="file"><span>📄 <a href="javascript:void(0)" onclick="previewFile('${url}', '${escapeAttr(item.name)}')">${escapeHtml(item.name)}</a></span><span class="size">${formatSize(item.size)}</span><span class="actions"><a href="${url}" target="_blank">Открыть</a><a href="${url}" download="${escapeAttr(item.name)}">Скачать</a></span></li>`;
+  }).join('') + '</ul>';
+}
+function previewFile(url, name) {
+  const ext = name.split('.').pop().toLowerCase(), body = $('modalBody');
+  $('modalTitle').textContent = name; $('modal').classList.add('open');
+  const img = ['png','jpg','jpeg','gif','webp','svg','bmp'], video = ['mp4','webm','ogg','mov'], audio = ['mp3','wav','m4a','flac'], pdf = ['pdf'], inline = ['txt','md','log','csv','json','xml','html','css','js','ts','py','java','c','cpp','sh'];
+  if (img.includes(ext)) body.innerHTML = `<img src="${url}" alt="">`;
+  else if (video.includes(ext)) body.innerHTML = `<video src="${url}" controls></video>`;
+  else if (audio.includes(ext)) body.innerHTML = `<audio src="${url}" controls style="width:100%;margin:40px 0;"></audio>`;
+  else if (pdf.includes(ext)) body.innerHTML = `<iframe src="${url}" style="width:100%;height:80vh;border:none;"></iframe>`;
+  else if (inline.includes(ext)) fetch(url).then(r => r.text()).then(t => body.innerHTML = `<pre>${escapeHtml(t)}</pre>`).catch(() => body.innerHTML = '<p>Не удалось загрузить</p>');
+  else body.innerHTML = `<div style="text-align:center;"><p style="margin-bottom:20px;color:#94a3b8;">Предпросмотр недоступен</p><a href="${url}" download="${escapeAttr(name)}" class="upload-btn">Скачать ${escapeHtml(name)}</a></div>`;
+}
+function closeModal() { $('modal').classList.remove('open'); $('modalBody').innerHTML = ''; }
+$('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+async function deleteArchive(e, id) { e.stopPropagation(); if (!confirm('Удалить архив?')) return; await fetch(`/api/archives/${id}`, { method: 'DELETE' }); loadArchives(); }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s).replace(/`/g, ''); }
+loadArchives();
+</script>
+</body>
+  </html>
