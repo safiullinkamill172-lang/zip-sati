@@ -6,8 +6,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const os = require('os');
 const store = require('./storage');
-const mime = require('./mime');
-
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -28,7 +27,7 @@ const upload = multer({
   limits: { fileSize: 500 * 1024 * 1024 }
 });
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
 app.post('/upload', upload.single('zipfile'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Файл не получен' });
@@ -87,5 +86,5 @@ app.delete('/api/archives/:id', async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 app.listen(PORT, '0.0.0.0', () => console.log(`Сервер: http://0.0.0.0:${PORT} | хранилище: ${process.env.STORAGE === 's3' ? 'S3' : 'локально'}`));
